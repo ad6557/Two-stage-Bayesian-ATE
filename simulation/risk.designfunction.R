@@ -21,11 +21,11 @@ PS.design = function(outcome,
   if(bayes){
     #posteriors = as.matrix(MCMCregress(outcome~treatment*covardataset,data=dataset,
     #                                   burnin=2*K,mcmc=K*100,thin=100))
-    # beta1 = posteriors[,c(2,(2+p+1):(2+p+5))]
+    # beta1 = posteriors[,c(2,(2+p+1):(2+p+p))]
     posteriors <- stan_glm(outcome~treatment*covardataset,data=dataset,
-                           family = gaussian(link = "identity"),refresh=0,
-                           iter = (thin+2)*K,warmup = 2*K,thin = 4*thin) # 4 chains
-    beta1 = as.matrix(posteriors)[,c(2,(2+p+1):(2+p+5))]
+                           family = gaussian(link = "identity"),refresh=0,prior = NULL)
+    draws = sample(c(1:4000),K) 
+    beta1 = as.matrix(posteriors)[draws,c(2,(2+p+1):(2+p+p))]
     covars = as.matrix(cbind(rep(1,n),covardataset))
     score = covars%*%t(beta1) # benefit indicator = [1 X]*beta1
   } else {

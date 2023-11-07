@@ -9,10 +9,11 @@ rubinse = function(ates,sigmas){
 
 bayes.output = function(stratATE,stratSE){
   BPSA.ATE = mean(stratATE,na.rm=TRUE)
-  BPSA.lower = BPSA.ATE - 1.96*rubinse(stratATE,stratSE)
-  BPSA.upper = BPSA.ATE + 1.96*rubinse(stratATE,stratSE)
+  BPSA.SE = rubinse(stratATE,stratSE)
+  BPSA.lower = BPSA.ATE - 1.96*BPSA.SE
+  BPSA.upper = BPSA.ATE + 1.96*BPSA.SE
   #cat("BPSA: ",round(BPSA.ATE,3), "(", round(BPSA.lower,3), ",", round(BPSA.upper,3), ")\n")
-  return(c(BPSA.lower,BPSA.upper))
+  return(c(BPSA.lower,BPSA.upper,BPSA.ATE,BPSA.SE))
 }
 
 freq.output = function(PSA.ate,PSA.se){
@@ -23,8 +24,12 @@ freq.output = function(PSA.ate,PSA.se){
 }
 
 library(dplyr)
-coverage_BPSA=rep(NA,M)
-coverage_PSA=rep(NA,M)
+#coverage_BPSA=rep(NA,M)
+#coverage_PSA=rep(NA,M)
+results=data.frame(matrix(ncol = 11, nrow = M))
+colnames(results)=c("trueATE", 
+                    "BayesATE", "BayesSE", "BayesCI1", "BayesCI2", "BPSAcoverage",
+                    "FreqATE", "FreqSE", "FreqCI1", "FreqCI2", "PSAcoverage")
 
 for(m in 1:M){
   
@@ -33,20 +38,21 @@ for(m in 1:M){
   covardataset=continuousdata[[m]][["covariates"]]
   trueATE=continuousdata[[m]][["benefitATE"]]
   
-  #cat(m, "\n")
+  cat(m, "\n")
   #cat("true ATE: ", trueATE, "\n")
   ############ BPSA ##############
-  K=800 # K=500 cannot converge
+  K=50
   BPSA.est.PS = PS.design(outcome,treatment,covardataset,bayes=TRUE,K=K)
   stratATE = rep(NA,K)
   stratSE = rep(NA,K)
   for(k in 1:K){
-    strat = PS.analysis(BPSA.est.PS[,k],treatment,outcome,covardataset,bpsa=2,S=600) # S=400 cannot converge
+    strat = PS.analysis(BPSA.est.PS[,k],treatment,outcome,covardataset,bpsa=2,S=1000)
     stratATE[k] = strat$ATE
     stratSE[k] = strat[["Average SE"]]
   }
   CI=bayes.output(stratATE,stratSE)
-  coverage_BPSA[m]=between(trueATE,CI[1],CI[2])
+  coverage_BPSA=between(trueATE,CI[1],CI[2])
+  results[m,1:6]=data.frame(trueATE,CI[3],CI[4],CI[1],CI[2],coverage_BPSA)
   
   ############ PSA ##############
   PSA.est.PS = PS.design(outcome,treatment,covardataset,bayes=FALSE)
@@ -56,7 +62,16 @@ for(m in 1:M){
   PSA.se = strat[["Average SE"]]
   
   CI=freq.output(PSA.ate,PSA.se)
-  coverage_PSA[m]=between(trueATE,CI[1],CI[2])
+  coverage_PSA=between(trueATE,CI[1],CI[2])
+  results[m,7:11]=data.frame(PSA.ate,PSA.se,CI[1],CI[2],coverage_PSA)
   #cat("\n")
 }
+
+mean(results$BPSAcoverage)
+mean(results$PSAcoverage)
+mean(abs(results$trueATE-results$BayesATE))
+mean(abs(results$trueATE-results$FreqATE))
+
+#save.image(file = paste0("M",M,"p",p,"_adjusted_s2_flatprior.RData"))
+#save.image(file = paste0("M",M,"p",p,"_unadjust_s2_flatprior.RData"))
 

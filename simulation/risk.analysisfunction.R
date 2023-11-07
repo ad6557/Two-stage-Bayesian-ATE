@@ -14,7 +14,7 @@ PS.analysis = function(psvector, ##psvector = input vector of ps
   thin = 10
   
   if(bpsa==1){# BPSA-1 : MLE linear regression with interactions
-    fit = lm(outcome~.-psvector,data=dataset)
+    fit = lm(outcome~.-psvector,data=dataset) # outcome~.-psvector / outcome~treatment
     estimated.effect = summary(fit)$coef[2,1]
     estimated.se = summary(fit)$coef[2,2]
     
@@ -22,10 +22,10 @@ PS.analysis = function(psvector, ##psvector = input vector of ps
       tryCatch({
         #posteriors = as.data.frame(MCMCregress(outcome~.-psvector,data=dataset,
         #                                       burnin=S*5,mcmc=S*50,thin=50))
-        posteriors <- stan_glm(outcome~.-psvector,data=dataset,
-                               family = gaussian(link = "identity"),refresh=0,
-                               iter = (thin+2)*S,warmup = 2*S,thin = 4*thin) # 4 chains
-        ates = as.matrix(posteriors)[,"treatment"]
+        posteriors <- stan_glm(outcome~.-psvector,data=dataset, # outcome~.-psvector / outcome~treatment
+                               family = gaussian(link = "identity"),refresh=0,prior = NULL)
+        draws = sample(c(1:4000),S) 
+        ates = as.matrix(posteriors)[draws,"treatment"]
         estimated.effect = mean(ates)
         estimated.se = sd(ates)
 

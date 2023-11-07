@@ -7,7 +7,7 @@ expit = function(x){
 
 ###########
 n =100 #sample size
-M = 500 #replications
+M = 100 #replications
 
 p = 5
 beta0 = matrix(c(0.1,seq(0.2,1,length=p)),nrow=1) #covariates for PS model
