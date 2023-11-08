@@ -31,7 +31,7 @@ PS.design = function(outcome,
   } else {
     #########Frequentist PS estimation
     fit = lm(outcome~treatment*covardataset,data=dataset)
-    beta1 = as.matrix(fit$coefficients)[c(2,8:12),]
+    beta1 = as.matrix(fit$coefficients)[c(2,(2+p+1):(2+p+p)),]
     covars = as.matrix(cbind(rep(1,n),covardataset))
     score = covars%*%beta1 # benefit indicator = [1 X]*beta1
   }
