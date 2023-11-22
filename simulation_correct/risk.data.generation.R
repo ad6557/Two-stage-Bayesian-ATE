@@ -1,34 +1,50 @@
 #load packages + required functions
 require(MASS)
 
-expit = function(x){
-  exp(x)/(1 + exp(x))
-}
-
 ###########
-n =100 #sample size
-M = 100 #replications
-
 p = 5
 beta0 = matrix(c(0.1,seq(0.2,1,length=p)),nrow=1) #covariates for PS model
+#beta1 = matrix(c(0.3,c(-1.1,-0.8,-0.5,-0.2,0.1,0.4,0.7,1,1.3)),nrow=1)
 beta1 = matrix(c(0.3,c(-0.8,-0.5,-0.1,0.5,1)),nrow=1)
-#beta1 = matrix(c(0.5,c(-0.3,0.3)),nrow=1)
+#beta1 = matrix(c(0.8,c(-0.3,0.3)),nrow=1)
 D = diag(rep(1,p)) #correlation matrix for covaritates: all covariates are independent
 sigma = 1 #variance for error term of the outcome model
 
-#empty data structures
 
-Delta_b = NA
-outcomes = matrix(NA,n,M)
-treatments = matrix(NA,n,M)
+############################## generate true ATE ###############################
+N=100000000
+###draw covariates from a multivariate normal distribution
+X = matrix( mvrnorm(N,mu=rep(0,p),Sigma=D), ncol = p)
+X = cbind(rep(1,N),X) #intercept
+
+#Treatment drawn based on a Bernoulli with probability = 0.5
+treatmentmatrix = matrix(rbinom(N,1,0.5),nrow=N,ncol=1)
+
+###continuous outcome simulation
+outcome = X%*%t(beta0) + X%*%t(beta1)*treatmentmatrix #+ error
+
+
+G = data.frame(outcome=outcome,treat=treatmentmatrix,benefit=X%*%t(beta1))
+#ATE in benefit group
+BG = G[G$benefit>0,]
+Delta_b = mean(BG[BG$treat==1,]$outcome)-mean(BG[BG$treat==0,]$outcome)
+#ATE in non benefit group
+#NBG = G[G$benefit<=0,]
+#Delta_nb = mean(NBG[NBG$treat==1,]$outcome)-mean(NBG[NBG$treat==0,]$outcome)
+
 
 ############################### continuousdata ##########################################
 continuousdata = list()
-set.seed(123)
+set.seed(1234)
+
+n =100 #sample size
+M = 200 #replications
+outcomes = matrix(NA,n,M)
+treatments = matrix(NA,n,M)
 
 ##iterate to create each dataset
 for(m in 1:M){
-
+  
   ###draw covariates from a multivariate normal distribution
   X = matrix( mvrnorm(n,mu=rep(0,p),Sigma=D), ncol = p)
   X = cbind(rep(1,n),X) #intercept
@@ -42,12 +58,6 @@ for(m in 1:M){
   outcome = X%*%t(beta0) + X%*%t(beta1)*treatmentmatrix + error
   outcomes[,m] = outcome
   
-  #ATE in benefit group
-  G = data.frame(outcome=outcome,treat=treatmentmatrix,benefit=X%*%t(beta1))
-  BG = G[G$benefit>0,]
-  Delta_b = mean(BG[BG$treat==1,]$outcome)-mean(BG[BG$treat==0,]$outcome)
-  #ATE in non benefit group
-  #Delta_nb = outcome*(1-treatmentmatrix)
   
   #save simulated data
   continuousdata[[m]] = list()
@@ -57,4 +67,6 @@ for(m in 1:M){
   continuousdata[[m]][["treatment"]] = treatmentmatrix
   continuousdata[[m]][["benefitATE"]] = Delta_b
 }
+
+
 
