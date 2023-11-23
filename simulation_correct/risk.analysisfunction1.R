@@ -16,6 +16,7 @@ PS.analysis = function(psvector, ##psvector = input vector of ps
     fit = lm(outcome~treatment*indicator,data=dataset) 
     estimated.effect = summary(fit)$coef[2,1]
     estimated.se = summary(fit)$coef[2,2]
+    ates = NA
     
   } else{#perform bayesian linear regression 
     tryCatch({
@@ -33,5 +34,5 @@ PS.analysis = function(psvector, ##psvector = input vector of ps
     
   }
   
-  return(list("ATE" = estimated.effect,"Average SE" = estimated.se))
+  return(list("ATE" = estimated.effect,"Average SE" = estimated.se,"ATES" = as.vector(ates)))
 }
