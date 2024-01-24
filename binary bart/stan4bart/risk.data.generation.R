@@ -18,27 +18,27 @@ X = cbind(rep(1,N),X) #intercept
 treatmentmatrix = matrix(c(rep(0,N/2),rep(1,N/2)),nrow=N,ncol=1)
 
 ###continuous outcome simulation
-LP = X%*%t(beta0) + X%*%t(beta1)*treatmentmatrix
+LP = X%*%t(beta0) + X%*%t(beta1)*treatmentmatrix # if all treated
 hist(pnorm(LP))
 # logit(pi) = log(pi/(1-pi)) = x*b
 # pi = 1/(1+exp(-x*b))
 # plogis(x*b) = 1/(1+exp(-x*b))
 outcome  <- rbinom(N, 1, pnorm(LP))
 
+LP = X%*%t(beta0) + X%*%t(beta1)*1 # if all treated
+G = data.frame(Y=outcome,TRT=treatmentmatrix,LP=LP)
+LR = G[G$LP>0,]
 
-G = data.frame(outcome=outcome,treat=treatmentmatrix)
-BG = G[LP>0,]
-p1.benefit <- mean(BG[which(BG$treat==1),]$outcome)
-p0.benefit <- mean(BG[which(BG$treat==0),]$outcome)
+p1.LR <- mean(LR[which(LR$TRT==1),]$Y)
+p0.LR <- mean(LR[which(LR$TRT==0),]$Y)
 
-# benefit.log.OR <- log((p1.benefit/(1-p1.benefit))/(p0.benefit/(1-p0.benefit)))
-PATE = p1.benefit - p0.benefit
+PATE = p1.LR - p0.LR
 
 ############################### binarydata ##########################################
 binarydata = list()
 
 n = 200 #sample size
-M = 500 #replications
+M = 200 #replications
 
 for(m in 1:M){
   
@@ -47,11 +47,11 @@ for(m in 1:M){
   X = cbind(rep(1,n),X) #intercept
   
   #Treatment drawn based on a Bernoulli with probability = 0.5
-  treatment = matrix(rbinom(n,1,0.5),nrow=n,ncol=1)
+  treatment =matrix(c(rep(0,n/2),rep(1,n/2)),nrow=n,ncol=1)
   
   ###continuous outcome simulation
   LP = X%*%t(beta0) + X%*%t(beta1)*treatment
-  outcome  <- rbinom(n, 1, plogis(LP))
+  outcome  <- rbinom(n, 1, pnorm(LP))
   
   #save simulated data
   binarydata[[m]] = list()
