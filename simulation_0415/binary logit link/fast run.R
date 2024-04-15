@@ -1,0 +1,120 @@
+model="nonlinear"
+
+source(paste0(model,".data.generation.R"))
+source("risk.designfunction.R")
+source("risk.analysisfunction.R")
+
+library(dplyr)
+
+################################## functions ##################################
+bayes.output = function(stratATE,stratSE,K,trueATE){
+  BayesATE = mean(stratATE,na.rm=TRUE)
+  BayesSE = sqrt(mean(stratSE^2,na.rm=TRUE) + (1/K+1)*var(stratATE,na.rm=TRUE))
+  BayesCI1 = BayesATE - 1.96*BayesSE
+  BayesCI2 = BayesATE + 1.96*BayesSE
+  B_coverage=between(trueATE,BayesCI1,BayesCI2)
+  return(data.frame(BayesATE,BayesSE,BayesCI1,BayesCI2,B_coverage))
+}
+
+freq.output = function(FreqATE,FreqSE,trueATE){
+  FreqCI1 = FreqATE - 1.96*FreqSE
+  FreqCI2 = FreqATE + 1.96*FreqSE
+  F_coverage=between(trueATE,FreqCI1,FreqCI2)
+  return(data.frame(trueATE,FreqATE,FreqSE,FreqCI1,FreqCI2,F_coverage))
+}
+
+################################## run model ##################################
+results_NLR=data.frame(matrix(ncol = 11, nrow = M))
+colnames(results_NLR)=c("trueATE",
+                        "FreqATE", "FreqSE", "FreqCI1", "FreqCI2", "F_coverage",
+                        "BayesATE", "BayesSE", "BayesCI1", "BayesCI2", "B_coverage")
+results_LR = results_NLR
+results_all = results_NLR
+
+for(m in 1:M){
+  
+  outcome=binarydata[[m]][["outcome"]]
+  treatment=binarydata[[m]][["treatment"]]
+  covardataset=binarydata[[m]][["covariates"]]
+  id1 = sample((n/2+1):n,n/4)
+  
+  cat("m",m, "\n")
+  
+  # bayes
+  K=100; 
+  total_NLR=c();total_LR=c();total_all=c();
+  BPSA.est.PS = PS.design(outcome,treatment,covardataset,id1,bayes=TRUE,K=K)
+  MLE_ATE = matrix(NA,K,3); BAY_ATE = MLE_ATE # NLR LR ALL
+  MLE_SE = matrix(NA,K,3); BAY_SE = MLE_SE # NLR LR ALL
+  for(k in 1:K){
+    psvector = BPSA.est.PS[,k]
+    MLE = PS.analysis(psvector,treatment[-id1],outcome[-id1],covardataset[-id1,],minCond,bayes=FALSE)
+    MLE_ATE[k,] = MLE$ATE
+    MLE_SE[k,] = MLE$SE
+  }
+  
+  results_NLR[m,7:11]=bayes.output(MLE_ATE[,1],MLE_SE[,1],K,log(OR_NLR))
+  results_LR[m,7:11]=bayes.output(MLE_ATE[,2],MLE_SE[,2],K,log(OR_LR))
+  results_all[m,7:11]=bayes.output(MLE_ATE[,3],MLE_SE[,3],K,log(OR_all))
+  
+  # freq
+  PSA.est.PS = PS.design(outcome,treatment,covardataset,id1,bayes=FALSE)
+  MLE = PS.analysis(PSA.est.PS,treatment[-id1],outcome[-id1],covardataset[-id1,],minCond,bayes=FALSE)
+  
+  results_NLR[m,1:6]=freq.output(MLE$ATE[1],MLE$SE[1],log(OR_NLR))
+  results_LR[m,1:6]=freq.output(MLE$ATE[2],MLE$SE[2],log(OR_LR))
+  results_all[m,1:6]=freq.output(MLE$ATE[3],MLE$SE[3],log(OR_all))
+}
+
+# save
+log_NLR=log(OR_NLR);log_LR=log(OR_LR);log_all=log(OR_all);
+save(results_NLR,results_LR,results_all,binarydata,
+     log_NLR,log_LR,log_all,
+     file=paste0(model,"_n",n,"_p",p,"_M",M,"minCond",minCond,".RData"))
+
+
+################################## results ##################################
+
+# NLR
+bias_F_NLR = mean(results_NLR$trueATE-results_NLR$FreqATE)
+bias_B_NLR = mean(results_NLR$trueATE-results_NLR$BayesATE)
+
+se_F_NLR = mean(results_NLR$FreqSE)
+se_B_NLR = mean(results_NLR$BayesSE)
+
+cvrg_F_NLR = mean(results_NLR$F_coverage)
+cvrg_B_NLR = mean(results_NLR$B_coverage)
+
+# LR
+bias_F_LR = mean(results_LR$trueATE-results_LR$FreqATE)
+bias_B_LR = mean(results_LR$trueATE-results_LR$BayesATE)
+
+se_F_LR = mean(results_LR$FreqSE)
+se_B_LR = mean(results_LR$BayesSE)
+
+cvrg_F_LR = mean(results_LR$F_coverage)
+cvrg_B_LR = mean(results_LR$B_coverage)
+
+# all
+bias_F_all = mean(results_all$trueATE-results_all$FreqATE)
+bias_B_all = mean(results_all$trueATE-results_all$BayesATE)
+
+se_F_all = mean(results_all$FreqSE)
+se_B_all = mean(results_all$BayesSE)
+
+cvrg_F_all = mean(results_all$F_coverage)
+cvrg_B_all = mean(results_all$B_coverage)
+
+
+# arrange output table
+overall_table <- data.frame(Avg_Bias_F=c(bias_F_NLR,bias_F_LR,bias_F_all),
+                            Avg_SE_F=c(se_F_NLR,se_F_LR,se_F_all),
+                            coverage_F=c(cvrg_F_NLR,cvrg_F_LR,cvrg_F_all),
+                            
+                            Avg_Bias_B=c(bias_B_NLR,bias_B_LR,bias_B_all),
+                            Avg_SE_B=c(se_B_NLR,se_B_LR,se_B_all),
+                            coverage_B=c(cvrg_B_NLR,cvrg_B_LR,cvrg_B_all),
+                            
+                            row.names=c('NLR', 'LR', 'all'))
+# print
+apply(overall_table, 2, function(x) round(x, 3))
